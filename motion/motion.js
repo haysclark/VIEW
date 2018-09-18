@@ -2,10 +2,11 @@ var EventEmitter = require("events").EventEmitter;
 require('rootpath')();
 var nmx = require('motion/drivers/nmx.js');
 var GenieMini = require('motion/drivers/genie_mini.js');
+var st4 = require('motion/drivers/st4.js');
 var db = require('system/db.js');
-
 var async = require('async');
 var nodeimu = require('nodeimu');
+
 var IMU = false;
 try {
 	IMU = new nodeimu.IMU();
@@ -19,12 +20,13 @@ motion.status = {
 	motors: [],
 	available: false,
 	calibrating: false
-}
+};
 var lastStatus = motion.status;
 
 motion.nmx = nmx;
 motion.gm1 = new GenieMini(1);
 motion.gm2 = new GenieMini(2);
+motion.st4 = st4;
 
 motion.cancelCalibration = function(driver, motorId, callback) {
 	motion.status.calibrating = false;
@@ -302,8 +304,13 @@ function updateStatus() {
 	var nmxStatus = motion.nmx.getStatus();
 	var gm1Status = motion.gm1.getStatus();
 	var gm2Status = motion.gm2.getStatus();
+    var st4Status = motion.st4.getStatus();
 
-    var available = (nmxStatus.connected || gm1Status.connected || gm2Status.connected) && (nmxStatus.motor1 || nmxStatus.motor2 || nmxStatus.motor2 || gm1Status.motor1 || gm2Status.motor1);
+    var available = (nmxStatus.connected && (nmxStatus.motor1 || nmxStatus.motor2 || nmxStatus.motor3)
+		|| (gm1Status.connected && gm1Status.motor1)
+		|| (gm2Status.connected && gm2Status.motor1)
+		|| (st4Status.connected && (st4Status.motor1 || st4Status.motor2 || st4Status.motor3 || st4Status.motor4))
+	);
     var motors = [];
 
 	console.log("motion.status: " , available, ", NMX: ", nmxStatus.connected, ", GM1:", gm1Status.connected, ", GM2:", gm2Status.connected);
@@ -324,7 +331,9 @@ function updateStatus() {
 	    motion.emit('status', motion.status);
     }
     lastStatus = motion.status;
-    lastStatus.reloadBt = (nmxStatus.connectionType == 'bt' && nmxStatus.connected) || (gm1Status.connectionType == 'bt' && gm1Status.connected) || (gm2Status.connectionType == 'bt' && gm2Status.connected);
+    lastStatus.reloadBt = (nmxStatus.connectionType == 'bt' && nmxStatus.connected)
+		|| (gm1Status.connectionType == 'bt' && gm1Status.connected)
+		|| (gm2Status.connectionType == 'bt' && gm2Status.connected);
 }
 
 motion.loadBacklash("NMX", 1);
@@ -332,6 +341,10 @@ motion.loadBacklash("NMX", 2);
 motion.loadBacklash("NMX", 3);
 motion.loadBacklash("GM", 1);
 motion.loadBacklash("GM", 2);
+motion.loadBacklash("ST4", 1);
+motion.loadBacklash("ST4", 2);
+motion.loadBacklash("ST4", 3);
+motion.loadBacklash("ST4", 4);
 
 motion.nmx.on('status', function(status) {
     updateStatus()
@@ -341,6 +354,9 @@ motion.gm1.on('status', function(status) {
 });
 motion.gm2.on('status', function(status) {
 	updateStatus()
+});
+motion.st4.on('status', function(status) {
+    updateStatus()
 });
 
 module.exports = motion;
